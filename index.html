@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b1120">
+  <title>MachineWise Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">MW</div>
+        <div>
+          <h2>MachineWise</h2>
+          <p>FLEET TELEMETRY</p>
+        </div>
+      </div>
+
+      <nav>
+        <a href="#dashboard">▦ Dashboard</a>
+        <a href="#devices">▣ Devices</a>
+        <a href="#sensors">⌁ Sensors</a>
+        <a href="#controls">⚙ Controls</a>
+        <a href="#history">◷ Command History</a>
+      </nav>
+
+      <div class="connection">
+        <span id="connectionDot" class="dot"></span>
+        <div>
+          <strong id="connectionText">Demo Mode</strong>
+          <small id="connectionDetail">Sample data active</small>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">MONITORING WORKSPACE</p>
+          <h1>Dashboard Overview</h1>
+          <p class="muted">Monitor device and sensor status.</p>
+        </div>
+        <button id="refreshBtn" class="btn secondary">↻ Refresh</button>
+      </header>
+
+      <div id="notice" class="notice" role="status">
+        Demo Mode: Sample data is being displayed.
+      </div>
+
+      <section id="dashboard" class="stats">
+        <article class="card">
+          <span>Total Devices</span>
+          <strong id="totalDevices">3</strong>
+          <small>Registered devices</small>
+        </article>
+        <article class="card">
+          <span>Online Devices</span>
+          <strong id="onlineDevices" class="green">2</strong>
+          <small>Connected</small>
+        </article>
+        <article class="card">
+          <span>Offline Devices</span>
+          <strong id="offlineDevices" class="red">1</strong>
+          <small>Need attention</small>
+        </article>
+        <article class="card">
+          <span>Moving Devices</span>
+          <strong id="movingDevices">1</strong>
+          <small>Current state</small>
+        </article>
+      </section>
+
+      <section id="devices" class="panel">
+        <div class="section-heading">
+          <div>
+            <h2>Device Management</h2>
+            <p>Select a device to monitor its sensors.</p>
+          </div>
+          <span class="pill">DEVICES</span>
+        </div>
+
+        <label for="deviceSelect">Select Device</label>
+        <select id="deviceSelect"></select>
+
+        <div class="device-details">
+          <span>Device ID</span><strong id="deviceId">—</strong>
+          <span>Status</span><strong id="deviceStatus">—</strong>
+          <span>Device State</span><strong id="deviceState">—</strong>
+        </div>
+      </section>
+
+      <section id="sensors" class="panel">
+        <div class="section-heading">
+          <div>
+            <h2>Sensor Monitoring</h2>
+            <p>Telemetry readings for the selected device.</p>
+          </div>
+          <span id="dataMode" class="pill">DEMO DATA</span>
+        </div>
+
+        <div class="sensor-grid">
+          <article class="sensor">
+            <span class="sensor-icon">↗</span>
+            <p>Speed</p>
+            <strong><span id="speed">—</span> <small>km/h</small></strong>
+            <div class="progress"><div id="speedBar"></div></div>
+          </article>
+
+          <article class="sensor">
+            <span class="sensor-icon">▰</span>
+            <p>Battery</p>
+            <strong><span id="battery">—</span><small>%</small></strong>
+            <div class="progress"><div id="batteryBar"></div></div>
+          </article>
+
+          <article class="sensor">
+            <span class="sensor-icon">♨</span>
+            <p>Temperature</p>
+            <strong><span id="temperature">—</span><small id="tempUnit"></small></strong>
+            <small class="muted">If the sensor is available</small>
+          </article>
+
+          <article class="sensor">
+            <span class="sensor-icon">◷</span>
+            <p>Total Distance</p>
+            <strong><span id="distance">—</span><small>km</small></strong>
+            <small class="muted">Since service start</small>
+          </article>
+        </div>
+
+        <div class="reading-footer">
+          <span>Last Reading</span>
+          <strong id="lastReading">Not available</strong>
+        </div>
+      </section>
+
+      <section id="controls" class="panel">
+        <div class="section-heading">
+          <div>
+            <h2>Device Controls</h2>
+            <p id="controlTarget">Target device</p>
+          </div>
+          <span class="pill">CONTROL PANEL</span>
+        </div>
+
+        <div class="controls">
+          <button class="control start" data-command="START">
+            <span>▶</span><strong>Start</strong><small>Start device</small>
+          </button>
+          <button class="control stop" data-command="STOP">
+            <span>■</span><strong>Stop</strong><small>Stop device</small>
+          </button>
+          <button class="control reset" data-command="RESET">
+            <span>↻</span><strong>Reset</strong><small>Reset device</small>
+          </button>
+          <button class="control refresh" data-command="REFRESH">
+            <span>⟳</span><strong>Refresh</strong><small>Reload data</small>
+          </button>
+        </div>
+
+        <p class="safety">
+          In Demo Mode, Start, Stop, and Reset do not control actual hardware.
+        </p>
+      </section>
+
+      <section id="history" class="panel">
+        <div class="section-heading">
+          <div>
+            <h2>Command History</h2>
+            <p>Recent commands and their results.</p>
+          </div>
+          <button id="clearHistory" class="btn secondary">Clear</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Device</th>
+                <th>Command</th>
+                <th>Result</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody">
+              <tr>
+                <td colspan="4">No commands yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer>MachineWise · HTML + CSS + JavaScript</footer>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

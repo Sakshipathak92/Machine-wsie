@@ -1,0 +1,401 @@
+
+"use strict";
+
+// Node.js backend URL.
+
+const API_BASE = "http://localhost:3000";
+
+const demoDevices = [
+  {
+    id: "VEH-1042",
+    status: "ONLINE",
+    state: "MOVING",
+    speed: 42,
+    battery: 86,
+    temperature: null,
+    distance: 128.4,
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "VEH-1043",
+    status: "ONLINE",
+    state: "IDLE",
+    speed: 0,
+    battery: 72,
+    temperature: null,
+    distance: 85.2,
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "VEH-1044",
+    status: "OFFLINE",
+    state: "OFF",
+    speed: 0,
+    battery: null,
+    temperature: null,
+    distance: 43.1,
+    updatedAt: null,
+  },
+];
+
+let devices = demoDevices.map((device) => ({ ...device }));
+let selectedId = "VEH-1042";
+let apiConnected = false;
+let busy = false;
+let history = [];
+let nextHistoryId = 1;
+
+const $ = (id) => document.getElementById(id);
+
+function normalizeDevice(device) {
+  const latest = device.latest || device;
+  const distance =
+    device.totalDistanceMeters != null
+      ? Number(device.totalDistanceMeters) / 1000
+      : device.distance ?? null;
+
+  return {
+    ...device,
+    id: device.id || device.deviceId || "UNKNOWN",
+    status: String(
+      device.status ||
+        (device.connected ? "ONLINE" : "OFFLINE")
+    ).toUpperCase(),
+    state: latest.state || device.state || "UNKNOWN",
+    speed: latest.speed ?? device.speed ?? null,
+    battery: latest.battery ?? device.battery ?? null,
+    temperature: latest.temperature ?? device.temperature ?? null,
+    distance,
+    updatedAt:
+      latest.timestamp || device.updatedAt || device.lastSeen || null,
+  };
+}
+
+function getSelectedDevice() {
+  return devices.find((device) => device.id === selectedId);
+}
+
+function displayValue(value, suffix = "") {
+  if (value === null || value === undefined || value === "") {
+    return "—";
+  }
+
+  const number = Number(value);
+  return Number.isFinite(number)
+    ? `${Number(number.toFixed(1))}${suffix}`
+    : `${value}${suffix}`;
+}
+
+function setNotice(message) {
+  $("notice").textContent = message;
+}
+
+function setConnection(connected) {
+  apiConnected = connected;
+
+  $("connectionText").textContent = connected
+    ? "Backend Connected"
+    : "Demo Mode";
+
+  $("connectionDetail").textContent = connected
+    ? "API reachable"
+    : "Sample data active";
+
+  $("connectionDot").className =
+    `dot ${connected ? "green" : "orange"}`;
+}
+
+function renderDeviceOptions() {
+  const select = $("deviceSelect");
+  select.replaceChildren();
+
+  devices.forEach((device) => {
+    const option = document.createElement("option");
+    option.value = device.id;
+    option.textContent = `${device.id} — ${device.status}`;
+    select.appendChild(option);
+  });
+
+  if (devices.some((device) => device.id === selectedId)) {
+    select.value = selectedId;
+  } else {
+    selectedId = devices[0]?.id || "";
+    select.value = selectedId;
+  }
+}
+
+function renderDashboard() {
+  const online = devices.filter(
+    (device) => device.status === "ONLINE"
+  ).length;
+
+  const moving = devices.filter(
+    (device) => device.state === "MOVING"
+  ).length;
+
+  $("totalDevices").textContent = devices.length;
+  $("onlineDevices").textContent = online;
+  $("offlineDevices").textContent = devices.length - online;
+  $("movingDevices").textContent = moving;
+}
+
+function renderSensors() {
+  const device = getSelectedDevice();
+
+  if (!device) {
+    $("deviceId").textContent = "No device";
+    $("deviceStatus").textContent = "UNKNOWN";
+    $("deviceState").textContent = "UNKNOWN";
+    return;
+  }
+
+  $("deviceId").textContent = device.id;
+  $("deviceStatus").textContent = device.status;
+  $("deviceStatus").className =
+    device.status === "ONLINE" ? "green-text" : "red-text";
+
+  $("deviceState").textContent = device.state;
+
+  $("speedValue").textContent = displayValue(device.speed);
+  $("batteryValue").textContent = displayValue(device.battery);
+
+  $("temperatureValue").textContent =
+    displayValue(device.temperature);
+
+  $("temperatureUnit").textContent =
+    device.temperature == null ? "" : "°C";
+
+  $("distanceValue").textContent = displayValue(device.distance);
+
+  const speed = Number(device.speed);
+  const battery = Number(device.battery);
+
+  $("speedBar").style.width =
+    Number.isFinite(speed) && device.speed != null
+      ? `${Math.max(0, Math.min(100, speed))}%`
+      : "0%";
+
+  $("batteryBar").style.width =
+    Number.isFinite(battery) && device.battery != null
+      ? `${Math.max(0, Math.min(100, battery))}%`
+      : "0%";
+
+  $("lastReading").textContent = device.updatedAt
+    ? new Date(device.updatedAt).toLocaleString()
+    : "Not available";
+
+  $("readingStatus").textContent = apiConnected
+    ? "LIVE API"
+    : "DEMO DATA";
+}
+
+function renderHistory() {
+  const tbody = $("historyBody");
+  tbody.replaceChildren();
+
+  if (history.length === 0) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+
+    cell.colSpan = 4;
+    cell.className = "empty";
+    cell.textContent = "empty";
+
+    row.appendChild(cell);
+    tbody.appendChild(row);
+    return;
+  }
+
+  history.forEach((entry) => {
+    const row = document.createElement("tr");
+
+    [entry.time, entry.deviceId, entry.command, entry.result]
+      .forEach((value) => {
+        const cell = document.createElement("td");
+        cell.textContent = value;
+        row.appendChild(cell);
+      });
+
+    tbody.appendChild(row);
+  });
+}
+
+function logCommand(command, result, deviceId = selectedId) {
+  history.unshift({
+    id: nextHistoryId++,
+    time: new Date().toLocaleTimeString(),
+    deviceId,
+    command,
+    result,
+  });
+
+  history = history.slice(0, 30);
+  renderHistory();
+}
+
+async function loadDevices() {
+  try {
+    const response = await fetch(`${API_BASE}/api/devices`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    const list = Array.isArray(data) ? data : data.devices;
+
+    if (!Array.isArray(list)) {
+      throw new Error(" devices API response");
+    }
+
+    devices = list.map(normalizeDevice);
+    setConnection(true);
+    renderDeviceOptions();
+    renderDashboard();
+    renderSensors();
+
+    setNotice("Backend");
+    return true;
+  } catch (error) {
+    setConnection(false);
+
+    // Backend
+    setNotice(
+      `Backend: ${error.message}. 
+    );
+
+    return false;
+  }
+}
+
+async function refreshData() {
+  if (busy) return;
+
+  busy = true;
+  $("refreshBtn").disabled = true;
+
+  try {
+    const success = await loadDevices();
+
+    if (success) {
+      logCommand("REFRESH", "API data loaded");
+    } else {
+      logCommand("REFRESH", "Demo data retained");
+    }
+  } finally {
+    busy = false;
+    $("refreshBtn").disabled = false;
+  }
+}
+
+async function sendCommand(command) {
+  const device = getSelectedDevice();
+
+  if (!device) {
+    setNotice("प्रथम डिव्हाइस निवडा.");
+    return;
+  }
+
+  if (command === "REFRESH") {
+    await refreshData();
+    return;
+  }
+
+  if (!apiConnected) {
+    setNotice(
+      "Demo Mode:  Backend "
+    );
+
+    logCommand(command, "NOT SENT — Demo Mode", device.id);
+    return;
+  }
+
+  if (device.status !== "ONLINE") {
+    setNotice("Offline ");
+    logCommand(command, "NOT SENT — Device Offline", device.id);
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `${device.id} $ {command} 
+  );
+
+  if (!confirmed) return;
+
+  if (busy) return;
+
+  busy = true;
+  document.querySelectorAll ("[data-command]").forEach((button) => {
+    button.disabled = true;
+  });
+
+  try {
+    // endpoint backend 
+    const response = await fetch(
+      `${API_BASE}/api/devices/${encodeURIComponent(device.id)}/commands`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body:JSON.stringify({ command }),
+      }
+    );
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(
+        result.message || `HTTP ${response.status}`
+      );
+    }
+
+    setNotice(
+      result.message || `${command} `
+    );
+
+    logCommand(command, "API ACCEPTED", device.id);
+    await loadDevices();
+  } catch (error) {
+    setNotice(${error.message}`);
+
+    logCommand(
+      command,
+      `FAILED: ${error.message}`,
+      device.id
+    );
+  } finally {
+    busy = false;
+
+    document;querySelectorAll("[data-command]").forEach((button) => {
+      button.disabled = false;
+    });
+  }
+}
+
+$("deviceSelect").addEventListener("change", (event) => {
+  selectedId = event.target.value;
+  renderSensors();
+});
+
+document.querySelectorAll("[data-command]").forEach((button) => {
+  button.addEventListener("click", () => {
+    sendCommand(button.dataset.command);
+  });
+});
+
+$("refreshBtn").addEventListener("click", refreshData);
+
+$("clearHistory").addEventListener("click", () => {
+  history = [];
+  renderHistory();
+  setNotice("Command History ");
+});
+ 
+renderDeviceOptions();
+renderDashboard();
+renderSensors();
+renderHistory();
+setConnection(false);
+
+loadDevices();
